@@ -26,6 +26,23 @@ CMake builds have been introduced, along with Travis-CI configuration for automa
 
 The travis-build.sh file has the full build and test sequence for Linux.
 
+## wolfSSL integration
+
+First install wolfSSL under the `/usr/local/lib` directory.
+
+Build the Gateway with
+
+```bash
+./build.sh dtls -DDEBUG -DDEBUG_NW wolfssl
+```
+
+The 4th parameter defaults to `openssl`.
+
+Analogously, build the GatewayTester with
+
+```bash
+./build.sh dtls wolfssl -DDEBUG_TESTER
+```
 
 ## Usage and API
 

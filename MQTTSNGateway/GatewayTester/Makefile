@@ -16,13 +16,16 @@ SRCSUB := ClientSub
 SRCQOS := ClientPubQoS-1
 SUBDIR := src
 
+SSL_LIB ?= openssl
+
+
 CPPSRCS :=  \
 $(SUBDIR)/LGwProxy.cpp \
 $(SUBDIR)/LMqttsnClient.cpp \
 $(SUBDIR)/LNetworkUdp.cpp \
 $(SUBDIR)/LNetworkUdp6.cpp \
 $(SUBDIR)/LNetworkRfcomm.cpp \
-$(SUBDIR)/LNetworkDtls.cpp \
+$(SUBDIR)/$(SSL_LIB)/LNetworkDtls.cpp \
 $(SUBDIR)/LNetworkDtls6.cpp \
 $(SUBDIR)/LPublishManager.cpp \
 $(SUBDIR)/LRegisterManager.cpp \
@@ -33,18 +36,33 @@ $(SUBDIR)/LTopicTable.cpp \
 $(SUBDIR)/LScreen.cpp \
 $(SUBDIR)/Payload.cpp \
 $(SUBDIR)/Util.cpp \
-#$(SRCDIR)/$(TESTAPPL).cpp \
-#$(SRCDIR)/$(SRCPUB)/$(PUBAPPL).cpp \
-#$(SRCDIR)/$(SRCSUB)/$(SUBAPPL).cpp \
+
+# Adding BioMethods.cpp for wolfSSL
+ifeq ($(SSL_LIB), wolfssl)
+CPPSRCS += $(SUBDIR)/$(SSL_LIB)/BioMethods.cpp
+endif
 
 CXX := g++ 
 CPPFLAGS += 
 
-INCLUDES += -I$(SUBDIR) -I/usr/local/opt/openssl/include
+INCLUDES += -I$(SUBDIR)
+# Adding the SSL library specific include directory
+INCLUDES += -I$(SUBDIR)/$(SSL_LIB)
+
+ifeq ($(SSL_LIB), wolfssl)
+INCLUDES += -I/usr/local/include/wolfssl
+else
+INCLUDES += -I/usr/local/opt/openssl/include
+endif
+
 DEF1 :=
 DEF2 :=
 DEFS := -D$(SN) $(DEF1) $(DEF2)
-LIBS += -L/usr/local/lib -L/usr/local/opt/openssl/lib
+ifeq ($(SSL_LIB), wolfssl)
+LIBS += -L/usr/local/lib -lwolfssl -pthread
+else
+LIBS += -L/usr/local/lib -L/usr/local/opt/openssl/lib -pthread
+endif
 LDFLAGS := 
 CXXFLAGS := -Wall -O3 -std=c++11
 LDADD := -lssl -lcrypto $(LDADDBLT)
@@ -106,5 +124,4 @@ install:
 	cp -pf $(PROG) ../../../
 	cp -pf $(PROGPUB) ../../../
 	cp -pf $(PROGSUB) ../../../	
-	cp -pf $(PROGQOS) ../../../	
-	
+	cp -pf $(PROGQOS) ../../../
