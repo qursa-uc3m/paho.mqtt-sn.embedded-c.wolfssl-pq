@@ -308,7 +308,7 @@ Connections::~Connections()
     {
         for (int i = 0; i < _numfds; i++)
         {
-            if (_ssls[i] > 0)
+            if (_ssls[i] != nullptr)
             {
                 SSL_shutdown(_ssls[i]);
                 SSL_free(_ssls[i]);
@@ -416,7 +416,7 @@ void Connections::close(int index)
         }
     }
 
-    if (ssl > 0)
+    if (ssl != nullptr)
     {
         _numfds--;
         SSL_shutdown(ssl);
@@ -586,7 +586,7 @@ int SensorNetwork::read(uint8_t *buf, uint16_t bufLen)
     client.clear();
     client.setFamily(_af);
 
-    // Check POLL_IN
+        // Check POLL_IN
     int cnt = _conns->poll(6000);  // Timeout 6secs
     if (cnt == 0)
     {
@@ -602,7 +602,7 @@ int SensorNetwork::read(uint8_t *buf, uint16_t bufLen)
 
     //  Check Unicast Port
 
-    if (_conns->getEventUnicast() & POLLIN)
+    if (_conns->getEventUnicast() & POLLIN) 
     {
         D_NWSTACK("RECV Unicast SSL_connect\n");
 

@@ -47,5 +47,3 @@ elif [ $1 == "clean" ] ; then
 else
     echo "Usage: build.sh  [ udp | udp6 | xbee | loralink | rfcomm | dtls | dtls6 | clean]"
 fi
-
-

@@ -12,7 +12,6 @@
  *
  * Contributors:
  *    Tomoaki Yamaguchi - initial API and implementation and/or initial documentation
- *    Javier Blanco-Romero (@fj-blanco) - wolfSSL integration (2024)
  **************************************************************************************/
 
 #ifndef NETWORK_H_
@@ -40,6 +39,7 @@ using namespace MQTTSNGW;
 /* TODO_wolfssl: link free parameters */
 #define IS_DTLS13 1
 #define HRR_COOKIE 1
+//#define USE_SECURE_RENEGOTIATION 1
 
 /*========================================
  Class TCPStack

@@ -12,7 +12,6 @@
  *
  * Contributors:
  *    Tomoaki Yamaguchi - initial API and implementation and/or initial documentation
- *    Javier Blanco-Romero (@fj-blanco) - wolfSSL integration (2024)
  **************************************************************************************/
 
 #include <string.h>
@@ -297,8 +296,13 @@ bool Network::connect(const char* host, const char* port, const char* caPath, co
 			wolfSSL_load_error_strings();
 			wolfSSL_library_init();
 
-			// TODO_wolfssl: add TLS versioning support
-			_ctx = wolfSSL_CTX_new(wolfSSLv23_method());
+			// TODO_wolfssl: remove the DTLS13 conditional as this is just for TLS between Gateway-Network
+
+			if (IS_DTLS13) {
+            	_ctx = wolfSSL_CTX_new(wolfSSLv23_method());
+			} else {
+				_ctx = wolfSSL_CTX_new(wolfTLSv1_2_method());
+			}
 
 			if (_ctx == 0)
 			{
@@ -364,7 +368,6 @@ bool Network::connect(const char* host, const char* port, const char* caPath, co
 		{
 			wolfSSL_set_session(_ssl, _session);
 		}
-
 		if (wolfSSL_connect(_ssl) != 1)
 		{
 			wolfSSL_ERR_error_string_n(wolfSSL_ERR_get_error(), errmsg, sizeof(errmsg));
@@ -457,7 +460,6 @@ int Network::send(const uint8_t* buf, uint16_t length)
 				{
 
 					writeBlockedOnRead = false;
-
 					int r = wolfSSL_write(_ssl, buf + bpos, length);
 
 					switch (wolfSSL_get_error(_ssl, r))

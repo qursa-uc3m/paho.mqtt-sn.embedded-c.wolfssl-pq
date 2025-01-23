@@ -65,13 +65,20 @@ unsigned char cookie_secret[COOKIE_SECRET_LENGTH];
 
  ============================================*/
 
-// BIO Datagram Control
+#define MQTT_SN_NONBLOCKING_ACCEPT 0
+#define MQTT_SN_GOODCH_CB 0
+
+#define HRR_COOKIE 1
+#define MQTTSN_DTLS_MTU 1152
 #define BIO_CTRL_DGRAM_SET_CONNECTED 32
 #define BIO_CTRL_DGRAM_SET_RECV_TIMEOUT 33
 #define BIO_CTRL_DGRAM_GET_PEER 46
 #define MQTT_BIO_TYPE_DGRAM 0x90    // The type is not necessary. This is a custom type code to avoid conflict with the existing types.
 
-#define MQTT_WOLFSSL_CIPHERS "TLS13-AES128-GCM-SHA256"
+//#define MQTT_WOLFSSL_GROUPS "KYBER_LEVEL3"
+//#define MQTT_WOLFSSL_SIGALGS "dilithium3"
+//#define MQTT_WOLFSSL_CIPHERS "TLS13-AES128-GCM-SHA256"
+#define MQTT_WOLFSSL_CIPHERS "DEFAULT:!NULL"
 
 #define wolfSSL_BIO_dgram_get_peer(bio, peer) \
     wolfSSL_BIO_ctrl(bio, BIO_CTRL_DGRAM_GET_PEER, 0, (char *)(peer))
@@ -631,18 +638,26 @@ int SensorNetwork::read(uint8_t *buf, uint16_t bufLen)
     int clientIndex = -1;
     int sockListen = 0;
     char errmsg[256];
-    union
+    #ifndef MQTT_SN_GOODCH_CB
+        union
         {
             struct sockaddr_in s4;
             struct sockaddr_in6 s6;
-    } client_addr;
-    CallbackContext context;
+        } client_addr;
+    #else
+        union
+            {
+                struct sockaddr_in s4;
+                struct sockaddr_in6 s6;
+        } client_addr;
+        CallbackContext context;
+    #endif
 
     SensorNetAddress client;
     client.clear();
     client.setFamily(_af);
 
-    // Check POLL_IN
+        // Check POLL_IN
     int cnt = _conns->poll(6000);  // Timeout 6secs
     if (cnt == 0)
     {
@@ -695,15 +710,19 @@ int SensorNetwork::read(uint8_t *buf, uint16_t bufLen)
         wolfSSL_set_bio(ssl, bio, bio);
         wolfSSL_set_options(ssl, WOLFSSL_OP_COOKIE_EXCHANGE);
 
-        /* We set the client address and pass it as context to the callback */
-        client.cpyAddr4(&client_addr.s4); 
-        context.client_addr = client_addr.s4;
-        context.server_addr = _serverAddr4;
-        context.client = &client;
-        if (wolfDTLS_SetChGoodCb(ssl, chGoodCb, &context) != WOLFSSL_SUCCESS) {
-            D_NWSTACK("Error setting ClientHello callback\n");
-        }
-
+        #ifndef MQTT_SN_GOODCH_CB
+            client.cpyAddr4(&client_addr.s4); // We set the client address
+        #else
+            // TODO: here we can set the callback for wolfDTLS_SetChGoodCb()
+            client.cpyAddr4(&client_addr.s4);
+            context.client_addr = client_addr.s4;
+            context.server_addr = _serverAddr4;
+            context.client = &client;
+            if (wolfDTLS_SetChGoodCb(ssl, chGoodCb, &context) != WOLFSSL_SUCCESS) {
+                fprintf(stderr, "Error setting ClientHello callback\n");
+            }
+        #endif
+        
         if (HRR_COOKIE) {
             if (wolfSSL_send_hrr_cookie(ssl, NULL, 0)
                 != WOLFSSL_SUCCESS) {
@@ -712,7 +731,6 @@ int SensorNetwork::read(uint8_t *buf, uint16_t bufLen)
         } else {
             wolfSSL_disable_hrr_cookie(ssl);
         }
-
         // Allow fragmented handshake messages
         if (IS_DTLS13) {
             wolfSSL_dtls13_allow_ch_frag(ssl, 1);
@@ -726,7 +744,7 @@ int SensorNetwork::read(uint8_t *buf, uint16_t bufLen)
         int ret;
         // Do handshake
         ret = wolfSSL_accept(ssl);
-        int err = wolfSSL_get_error(ssl, ret);
+        int err = wolfSSL_get_error(ssl, ret);        
         if (ret <= 0)
         {
             wolfSSL_ERR_error_string_n(wolfSSL_ERR_get_error(), errmsg, sizeof(errmsg));
@@ -737,7 +755,25 @@ int SensorNetwork::read(uint8_t *buf, uint16_t bufLen)
         else
         {
             // Handle client connection
-            int client_fd = wolfSSL_get_fd(ssl);
+            #ifndef MQTT_SN_GOODCH_CB
+                // DTLS over IPv4
+                int client_fd = socket(AF_INET, SOCK_DGRAM, 0);
+                optval = 1;
+                setsockopt(client_fd, SOL_SOCKET, SO_REUSEADDR, (const void*) &optval, sizeof(optval));
+                // Bind to Dtls PortNo
+                bind(client_fd, (sockaddr*) &_serverAddr4, sizeof(sockaddr_in));
+                if (connect(client_fd, (struct sockaddr *)&client_addr, sizeof(client_addr)) == -1) {
+                    perror("connect failed");
+                    return -1;
+                } else {
+                }
+                client.setSockaddr4((sockaddr_in*) &client_addr.s4);
+                wolfSSL_BIO_set_fd(cbio, client_fd, BIO_NOCLOSE);
+                wolfSSL_BIO_ctrl(cbio, BIO_CTRL_DGRAM_SET_PEER, 0, &client_addr);
+                wolfSSL_BIO_ctrl(cbio, BIO_CTRL_DGRAM_SET_CONNECTED, 0, &client_addr);
+            #else
+                int client_fd = wolfSSL_get_fd(ssl);
+            #endif
             // add ssl & socket to Connections instance
             int index = _conns->addClientSSL(ssl, client_fd);
 
@@ -928,6 +964,11 @@ void SensorNetwork::initialize(void)
         throw EXCEPTION("SSL_CTX_new()", 0);
     }
     wolfSSL_CTX_set_min_proto_version(_dtlsctx, DTLS1_VERSION);
+
+    /* Set MTU for DTLS */
+#ifdef WOLFSSL_DTLS_MTU
+    wolfSSL_CTX_dtls_set_mtu(_dtlsctx, MQTTSN_DTLS_MTU);
+#endif
 
     if (wolfSSL_CTX_use_certificate_file(_dtlsctx, theGateway->getGWParams()->gwCertskey, SSL_FILETYPE_PEM) != 1)
     {

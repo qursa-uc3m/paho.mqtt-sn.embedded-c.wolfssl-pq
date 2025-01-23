@@ -55,6 +55,9 @@ if(SSL_LIB_LOWER STREQUAL "wolfssl")
     else()
         message(FATAL_ERROR "wolfSSL not found")
     endif()
+    # print message with the path of the wolfSSL library and include directory
+    message(STATUS "wolfSSL library: ${WOLFSSL_LIBRARY}")
+    message(STATUS "wolfSSL include directory: ${WOLFSSL_INCLUDE_DIR}")
 endif()
 
 ADD_DEFINITIONS(${DEFS})
@@ -93,29 +96,31 @@ ADD_LIBRARY(mqtt-sngateway_common
     ${OS}/${SENSORNET}/${SSL_LIB}/SensorNetwork.h
     ${OS}/Timer.cpp
     ${OS}/Timer.h
-    ${OS}/network/${SSL_LIB}/Network.cpp
-    ${OS}/network/${SSL_LIB}/Network.h
+    ${OS}/${SSL_LIB}/Network.cpp
+    ${OS}/${SSL_LIB}/Network.h
     ${OS}/Threading.cpp
     ${OS}/Threading.h
 )
 
 # wolfSSL
 if(SSL_LIB_LOWER STREQUAL "wolfssl")
-    target_sources(mqtt-sngateway_common PRIVATE ${OS}/network/${SSL_LIB}/BioMethods.cpp ${OS}/network/${SSL_LIB}/BioMethods.h)
+    target_sources(mqtt-sngateway_common PRIVATE ${OS}/${SSL_LIB}/BioMethods.cpp ${OS}/${SSL_LIB}/BioMethods.h)
 endif()
 
 # linux
 link_directories("/usr/local/lib")
 
 # Mac
-link_directories("/usr/local/opt/openssl/lib")
+if(SSL_LIB_LOWER STREQUAL "openssl")
+    link_directories("/usr/local/opt/openssl/lib")
+endif() ## TODO (wolfSSL): test on Mac
 
 if(SSL_LIB_LOWER STREQUAL "wolfssl")
     target_include_directories(mqtt-sngateway_common
        PUBLIC
        .
        ${OS}
-       ${OS}/network/${SSL_LIB}
+       ${OS}/${SSL_LIB}
        ${OS}/${SENSORNET}
        ${OS}/${SENSORNET}/${SSL_LIB}
        ../../MQTTSNPacket/src
@@ -126,7 +131,7 @@ else()
        PUBLIC
        .
        ${OS}
-       ${OS}/network/${SSL_LIB}
+       ${OS}/${SSL_LIB}
        ${OS}/${SENSORNET}
        ${OS}/${SENSORNET}/${SSL_LIB}
        ../../MQTTSNPacket/src
