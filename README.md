@@ -1,65 +1,76 @@
-# Eclipse Paho MQTT-SN C/C++ client for Embedded platforms
+# Post-Quantum MQTT-SN Gateway
 
-This repository contains the source code for the [Eclipse Paho](http://eclipse.org/paho) MQTT-SN C/C++ client library for Embedded platorms.
+This repository is a fork of the [Eclipse Paho MQTT-SN C/C++ client](https://github.com/eclipse-paho/paho.mqtt-sn.embedded-c) that integrates post-quantum cryptography capabilities through [wolfSSL](https://github.com/wolfSSL/wolfssl) integration. This work is part of our research on securing IoT protocols against quantum threats.
 
-It is dual licensed under the EPL and EDL (see about.html and notice.html for more details).  You can choose which of these licenses you want to use the code under.  The EDL allows you to embed the code into your application, and distribute your application in binary or source form without contributing any of your code, or any changes you make back to Paho.  See the EDL for the exact conditions.
+We have integrated PQC capabilities in both the Gateway and the GatewayTester clients. This Gateway can be also tested along our [wolfMQTT clients](https://github.com/qursa-uc3m/pq-mqtt-sn-clients).
 
-There are three sub-projects:
+## Research Paper
 
-1. MQTTSNPacket - simple de/serialization of MQTT-SN packets, plus helper functions
-2. MQTTGateway - MQTT-SN transparent/aggregating gateway - connects MQTT-SN clients with an MQTT server.  See the README within the project for more information.
-3. MQTTSNClient - high(er) level C++ client (not yet complete)
+This implementation with some preliminary benchmarks is described in the following [conference paper](https://ieeexplore.ieee.org/abstract/document/10733716/):
 
-The *MQTTSNPacket* directory contains the lowest level C library with the smallest requirements.  This supplies simple serialization
-and deserialization routines.  They serve as a base for the higher level libraries, but can also be used on their own.
-It is mainly up to you to write and read to and from the network.
+> Blanco-Romero, J., Lorenzo, V., Almenares, F., Díaz-Sánchez, D., Campo, C., & García-Rubio, C. (2024). "Integrating Post-Quantum Cryptography into CoAP and MQTT-SN Protocols." In 2024 IEEE Symposium on Computers and Communications (ISCC), pp. 1-6.
 
-The *MQTTSNGateway* directory contains an MQTT-SN to MQTT transparent/aggregating gateway (see the MQTT-SN specification for a description of that.)  It can
-be used to connect the MQTT-SN client to an MQTT server.
+## Building and Running
 
-The *MQTTSNClient* directory contains the next level C++ library.  This is intended to mirror the way the MQTTClient works in the Paho embedded
-MQTT project, but it's not yet complete.
-
-## Build requirements / compilation
-
-CMake builds have been introduced, along with Travis-CI configuration for automated build & testing.
-
-The travis-build.sh file has the full build and test sequence for Linux.
-
-## wolfSSL integration
-
-First install wolfSSL under the `/usr/local/lib` directory.
-
-Build the Gateway with
+You can build the Gateway with wolfSSL DTLS support with the following command:
 
 ```bash
+git clone https://github.com/qursa-uc3m/paho.mqtt-sn.embedded-c.wolfssl-pq
+cd ./paho.mqtt-sn.embedded-c/MQTTSNGateway/
 ./build.sh dtls -DDEBUG -DDEBUG_NW wolfssl
 ```
 
-The 4th parameter defaults to `openssl`.
-
-Analogously, build the GatewayTester with
+Analogously, you can build the GatewayTester with:
 
 ```bash
 ./build.sh dtls wolfssl -DDEBUG_TESTER
 ```
 
-## Usage and API
+Then modify the `MQTTSNGateway/gateway.conf` file to add the certificate and key files. For example:
 
-See the samples directories for examples of intended use.  Doxygen config files are available in the doc directory.
+```bash
+DtlsCertsKey=../../certs/dtls.crt
+DtlsPrivKey=../../certs/dtls.key
+```
 
-## Runtime tracing
+### Testing with GatewayTester
 
+Run the gateway (from the `MQTTSNGateway` folder):
 
-## Reporting bugs
+```bash
+./bin/MQTT-SNGateway 
+```
 
-This project uses GitHub Issues here: [github.com/eclipse/paho.mqtt-sn.embedded-c/issues](https://github.com/eclipse/paho.mqtt-sn.embedded-c/issues) to track ongoing development and issues.
+Then go to the `MQTTSNGateway/GatewayTester` folder and run, for example, the subscriber:
 
-## More information
+```bash
+./Build/MQTT-SNSub
+```
 
-Discussion of the Paho clients takes place on the [Eclipse Mattermost Paho channel](https://mattermost.eclipse.org/eclipse/channels/paho) and the [Eclipse paho-dev mailing list](https://dev.eclipse.org/mailman/listinfo/paho-dev).
+Or the publisher:
 
-General questions about the MQTT protocol are discussed in the [MQTT Google Group](https://groups.google.com/forum/?hl=en-US&fromgroups#!forum/mqtt).
+```bash
+./Build/MQTT-SNPub
+```
 
-More information is available via the [MQTT community](http://mqtt.org).
+### Testing the Gateway with wolfMQTT clients
 
+You can also test the gateway with the [wolfMQTT clients](https://github.com/qursa-uc3m/pq-mqtt-sn-clients). See the instructions there.
+
+## Troubleshooting
+
+Sometimes stopping the gateway with `Ctrl+C` doesn't stop the process. You can check if there are hanging processes in the relevant ports with:
+
+```bash
+sudo lsof -i :1883 -i :8883 -i :10000
+```
+
+If any, you can kill them by the name with:
+
+```bash
+sudo pgrep -f 'MQTT-SNGa' | while read pid; do sudo kill -9 $pid; done
+```
+
+## Traffic Analysis
+
+For DTLS, you should capture the traffic in ports: `udp.port == 1883 || udp.port == 8883 || udp.port == 10000`. It is recommended to use Wireshark with the [OQS-wireshark](https://github.com/open-quantum-safe/oqs-demos/blob/main/wireshark/USAGE.md) due to the post-quantum cryptography support.
